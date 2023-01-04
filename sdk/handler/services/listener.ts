@@ -1,7 +1,7 @@
 import { reportError } from "../utils/reporter";
 
 export const startListener = () => {
-  window.onerror = (message = "", url = "", lineno = -1, colno = -1, error) => {
+  window.onerror = (message = "", _, lineno = -1, colno = -1, error) => {
     // console.log("onerror", error)
     reportError({
       type: "onerror",

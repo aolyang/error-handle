@@ -233,7 +233,7 @@ export const reportError = (data: IReportData) => {
 }
 ```
 
-## 服务端收集error信息
+## 简易服务端收集error信息
 
 这里简单方便先以express实现一个简易的服务器：
 
@@ -274,7 +274,7 @@ app.listen(4004, () => {
 })
 ```
 
-
+拿到错误信息和位置信息之后，就要考虑如何将生产环境的代码映射到源代码上了。这时我们需要一个记录编译前后位置信息的交换文件**sourcemap**文件。
 
 ## 代码映射文件 Source Map
 
@@ -640,3 +640,109 @@ VLQ的单位也是6位，即最高位表示连续，低5位表示实际数据。
 同时需要支持sourcemap的浏览器开启sourcemap功能：
 
 ![image-20230104175408384](./assets/sourcemap-settings.png)
+
+## 堆栈信息还原
+
+知道生产环境如何上报错误，知道sourcemap原理如何之后，我们就要着手从错误信息中还原出源代码错误的位置。
+
+**利用第三方库解析sourcemap和定位**
+
+这里要用到Mozilla开发的一个工具库[source-map](https://github.com/mozilla/source-map)，可以大大降低sourcemap操作的难度。
+
+### sourcemap准备
+
+首先，我们要在发布应用时产出sourcemap文件，并host到我们的收集服务器上（这里就是localhost:4004)。源代码使用的打包工具是vite，则需要开启生产环境打包sourcemap，`build.sourcemap = "hidden"`（值有三个，分别为true， false， “hidden”，区别是hidden也输出sourcemap文件，但是在js文件中并不会加上末尾的引用sourcemap注释。
+
+为了方便，我就将vite打包的sourcemap直接复制到服务端代码app.ts旁边：
+
+```
+server
+  | app.ts  // express server
+  | frontend.js.map
+```
+
+frontend.js.map
+
+```json
+{
+  "version": 3,
+  "file": "index-49709e01.js",
+  "sources": [
+    "../../../../sdk/handler/utils/reporter.ts",
+    "../../../../sdk/handler/services/listener.ts",
+    "../../src/errors.ts",
+    "../../src/main.ts"
+  ],
+  "sourcesContent": [
+    "export interface IReportData {\n  lineno: number\n  colno: number\n ......",
+    "import { reportError } from \"../utils/reporter\";\n\nexport const ......",",
+    "export const setupTypeError = (el: HTMLButtonElement) => {\n  el.onclick = () => ......",",
+    "import { startListener } from \"@lib/error-handler\";\n\nimport {\n  setupReferencesError, ......","
+  ],
+  "names": [
+    "cache",
+    "reportError",
+    "data",
+    "key",
+    "..."
+  ],
+  "mappings": "ssBAQA,MAAMA,MAAY..."
+}
+
+```
+
+### 改造收集服务端，利用source-map库获取代码片段
+
+服务端就非常简单了，1.读取sourcemap文件；2.接受位置信息；3. 返回content以及源码间位置。结束。
+
+```typescript
+import sourceMap, { RawSourceMap } from "source-map"
+
+// 根据行数获取源文件行数
+export const getPosition = async (map: RawSourceMap, rolno: number, colno: number) => {
+  const consumer = await new sourceMap.SourceMapConsumer(map)
+
+  if (colno < 0 || colno < 0) return
+  const position = consumer.originalPositionFor({
+    line: rolno,
+    column: colno
+  })
+
+  const content = position.source ? consumer.sourceContentFor(position.source) : ""
+
+  return { position, content }
+}
+
+app.post("/error", async (req, res) => {
+  const { lineno, colno  } = req.body
+  
+  // 读取sourcemap文件并格式化成json raw
+  fs.readFile("./frontend.js.map", async (err, data) => {
+    if (err) return res.json({ message: "failed" })
+
+    const raw = JSON.parse(data.toString())
+
+    const result = await getPosition(raw, lineno, colno)
+    console.log("result", result)
+    res.json(result)
+  })
+})
+
+```
+
+![image-20230104223806840](D:\workspaces\error-handle\assets\reveal.png)
+
+## 丰富信息与生产问题
+
++ 界面可以通过传递更多的error type，主动catch易错误点以达到更好的监控效果；
+
++ 实际toC的业务中，打点监控都是非应用域名的，服务端一般不开放跨域，这回造成跨域问题；如果用js/css/font文件进行传参，则会因为挂载dom树竞争页面渲染，频繁时容易造成卡顿；因此，可以考虑使用**new Image**.src进行参数传递，为了减少资源开销，可以使用最小1x1像素的gif进行打点。
+
+  > 同样的响应，GIF可以比BMP节约41%的流量，比PNG节约35%的流量。GIF才是最佳选择
+  >
+  > - 可以进行跨域
+  > - 不会携带cookie
+  > - 不需要等待服务器返回数据
+
++ 为了使监控不影响应用的加载，不挤兑js的线程，可以将错误结合时间缓存起来，用异步的方法上报。同时，sdk也可以通过inline script异步加载。
+

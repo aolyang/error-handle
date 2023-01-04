@@ -4,7 +4,7 @@
 examples/sourcemap-demo/sourceMapDemo.d.ts
 examples/sourcemap-demo/sourceMapDemo.js
 examples/sourcemap-demo/sourceMapDemo*.map
-
+server/frontend.js*
 ###
 
 
