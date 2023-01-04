@@ -17,9 +17,15 @@ importers:
       vite: 4.0.3_@types+node@18.11.18
 
   examples/map-debug:
-    specifiers: {}
+    specifiers:
+      '@lib/error-handler': link:../../sdk/handler
+    dependencies:
+      '@lib/error-handler': link:../../sdk/handler
 
   examples/sourcemap-demo:
+    specifiers: {}
+
+  sdk/handler:
     specifiers: {}
 
 packages:

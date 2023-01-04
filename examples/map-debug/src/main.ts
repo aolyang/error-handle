@@ -1,23 +1,28 @@
-import './style.css'
-import typescriptLogo from './typescript.svg'
-import { setupCounter } from './counter'
+import { startListener } from "@lib/error-handler";
 
+import {
+  setupReferencesError,
+  setupTypeError,
+  setupUnhandledRejection
+} from "./errors";
+import './style.css'
+
+startListener()
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div>
-    <a href="https://vitejs.dev" target="_blank">
-      <img src="/vite.svg" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://www.typescriptlang.org/" target="_blank">
-      <img src="${typescriptLogo}" class="logo vanilla" alt="TypeScript logo" />
-    </a>
-    <h1>Vite + TypeScript</h1>
+    <h1>Errors</h1>
     <div class="card">
-      <button id="counter" type="button"></button>
+      <button id="type-error" type="button">Type Error</button>
+      <button id="references-error" type="button">References Error</button>
     </div>
-    <p class="read-the-docs">
-      Click on the Vite and TypeScript logos to learn more
-    </p>
+    <hr />
+    <div class="card">
+      <p>UnhandledRejection</p>
+      <button id="fetch" type="button">fetch</button>
+    </div>
   </div>
 `
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+setupTypeError(document.querySelector<HTMLButtonElement>('#type-error')!)
+setupReferencesError(document.querySelector<HTMLButtonElement>('#references-error')!)
+setupUnhandledRejection(document.querySelector<HTMLButtonElement>('.card>#fetch')!)

@@ -8,6 +8,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
+  "dependencies": {
+    "@lib/error-handler": "link:../../sdk/handler"
+  },
   "devDependencies": {
   }
 }

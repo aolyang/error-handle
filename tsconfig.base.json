@@ -1,17 +1,34 @@
+
 {
   "compilerOptions": {
-    "target": "ESNext",
-    "useDefineForClassFields": true,
+    "experimentalDecorators": true,
+    "allowJs": false,
     "module": "ESNext",
-    "moduleResolution": "Node",
-    "strict": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
     "esModuleInterop": true,
-    "noEmit": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "isolatedModules": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
     "noImplicitReturns": true,
-    "skipLibCheck": true
+    "noImplicitThis": true,
+    "noImplicitAny": true,
+    "strict": true,
+    "noUnusedLocals": false,
+    "pretty": true,
+    "skipLibCheck": true,
+    "target": "ES2016",
+    "resolveJsonModule": true,
+    /** https://github.com/microsoft/TypeScript/issues/5711#issuecomment-157793294 */
+    "declaration": false,
+    "sourceMap": false,
+    "types": [
+      "vite/client",
+      "node"
+    ],
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
+    ]
   }
 }

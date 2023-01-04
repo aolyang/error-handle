@@ -163,6 +163,76 @@
 
 ### 错误收集实现
 
+**通过三种方式监听错误**
+
+```ts
+// listener.ts
+export interface IReportData {
+  lineno: number
+  colno: number
+  type: string
+  message?: string
+  stack?: string
+}
+
+export const startListener = () => {
+  window.onerror = (message = "", url = "", lineno = -1, colno = -1, error) => {
+    // console.log("onerror", error)
+    reportError({
+      type: "onerror",
+      lineno,
+      colno,
+      message: message as string,
+      stack: (error as any)?.stack || ""
+    })
+  }
+  window.addEventListener("error", (event) => {
+    const { lineno, colno, message } = event
+    // console.log("addEventListener", event)
+    reportError({
+      type: "addEventListener",
+      lineno,
+      colno,
+      message,
+      stack: event.error?.stack || ""
+    })
+  })
+  // promise错误无法拿到位置信息
+  window.addEventListener("unhandledrejection", (e) => {
+    // console.log("unhandledrejection", e)
+    reportError({
+      type: "unhandledrejection",
+      lineno: -1,
+      colno: -1,
+      message: e.reason?.message || "",
+      stack: e.reason?.stack || ""
+    })
+  })
+}
+```
+
+**因为错误可能会同时触发两个以上监听器，所以要做个过滤**
+
+```ts
+const cache = new Map()
+
+export const reportError = (data: IReportData) => {
+  const key = `${data.lineno}-${data.colno}`
+  if (cache.has(key)) return
+
+  cache.set(key, data)
+  
+  fetch("http://localhost:404/error", {
+    body: JSON.stringify(data),
+    method: "POST"
+  }).then(() => {
+    cache.delete(key)
+  })
+}
+```
+
+
+
 ## 代码映射文件 Source Map
 
 很早之前，为了解决JavaScript脚本越来越复杂且越来越大的问题，通常大部分源码都要通过转换、压缩等方法才能投入到生产环境。通常的情况是**
