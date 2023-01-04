@@ -730,7 +730,7 @@ app.post("/error", async (req, res) => {
 
 ```
 
-![image-20230104223806840](D:\workspaces\error-handle\assets\reveal.png)
+![image-20230104223806840](./assets/reveal.png)
 
 ## 丰富信息与生产问题
 
@@ -746,3 +746,31 @@ app.post("/error", async (req, res) => {
 
 + 为了使监控不影响应用的加载，不挤兑js的线程，可以将错误结合时间缓存起来，用异步的方法上报。同时，sdk也可以通过inline script异步加载。
 
+## 参考资料
+
+### sourcemap
+
+1. Source Maps under the hood – VLQ, Base64 and Yoda. (https://learn.microsoft.com/en-us/archive/blogs/davidni/source-maps-under-the-hood-vlq-base64-and-yoda)
+2. Source Map Revision 3 Proposal. (https://docs.google.com/document/d/1U1RGAehQwRypUTovF1KRlpiOFze0b-_2gc6fAH0KY0k/edit) (https://docs.google.com/document/d/1U1RGAehQwRypUTovF1KRlpiOFze0b-_2gc6fAH0KY0k/edit)
+3. SourceMap详解. (https://juejin.cn/post/6948951662144782366)
+4. JavaScript Source Map 详解. (http://www.ruanyifeng.com/blog/2013/01/javascript_source_map.html)
+5. source map 的原理探究. (https://github.com/wayou/wayou.github.io/issues/9)
+
+### Base64, VLQ， Base64 VLQ编码
+
+1. Variable-length quantity. (https://en.wikipedia.org/wiki/Variable-length_quantity)
+2. GITHUB js-base64. (https://github.com/dankogai/js-base64/tree/main)
+3. vlq. (https://juejin.cn/post/7098014484588920868#heading-3)
+4. base64编码详解. (https://zhuanlan.zhihu.com/p/339477329)
+5. VLQ & Base64 编码方式原理以及代码实现. (https://www.cnblogs.com/echoyya/p/16726545.html)
+6. 一文搞懂base64编码足矣. (https://juejin.cn/post/7168809452508807182)
+7. 手动实现 source-map 中生成 mapping 属性的base64、VLQ及base64-VLQ 编码方法. (https://juejin.cn/post/7011156613268504606#heading-10)
+8. VLQ编码. (https://github.com/D-kylin/note/blob/master/VLQ%E7%BC%96%E7%A0%81.md)
+
+### 错误监控
+
+1. 一篇讲透自研的前端错误监控. (https://juejin.cn/post/6987681953424080926#heading-11)
+2. SourceMap 与前端异常监控. (https://mp.weixin.qq.com/s/BbvJ-OfcS7Sa-e0Zq6iF1w)
+3. 超详细！搭建一个前端错误监控系统.  (https://zhuanlan.zhihu.com/p/51446011)
+4. 如何做前端异常监控？ (https://www.zhihu.com/question/29953354/answer/2520764897)
+5. 一步一步搭建前端监控系统：JS错误监控篇. (https://developer.aliyun.com/article/707873)
