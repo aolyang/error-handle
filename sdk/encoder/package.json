@@ -1,0 +1,10 @@
+{
+  "name": "base64_vlq",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "vlq": "ts-node ./vlq.ts",
+    "base64": "ts-node ./base64.ts"
+  }
+}

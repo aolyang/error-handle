@@ -1,2 +1,2 @@
 # error-handle
-frontent error handling demo
+frontend error handling demo

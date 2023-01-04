@@ -1,0 +1,7 @@
+{
+  "name": "example",
+  "scripts": {
+    "dts-map": "tsc sourceMapDemo.ts --declaration --declarationMap",
+    "ts-map": "tsc sourceMapDemo.ts --sourceMap"
+  }
+}
