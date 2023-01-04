@@ -14,7 +14,8 @@ export const reportError = (data: IReportData) => {
 
   cache.set(key, data)
 
-  fetch("http://localhost:404/error", {
+  fetch("http://127.0.0.1:4004/error", {
+    headers: new Headers([["Content-Type", "application/json"]]),
     body: JSON.stringify(data),
     method: "POST"
   }).then(() => {

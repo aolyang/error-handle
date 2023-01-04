@@ -211,9 +211,10 @@ export const startListener = () => {
 }
 ```
 
-**因为错误可能会同时触发两个以上监听器，所以要做个过滤**
+**发送错误到后端**
 
 ```ts
+// 因为错误可能会同时触发两个以上监听器，所以要做个过滤
 const cache = new Map()
 
 export const reportError = (data: IReportData) => {
@@ -221,14 +222,56 @@ export const reportError = (data: IReportData) => {
   if (cache.has(key)) return
 
   cache.set(key, data)
-  
-  fetch("http://localhost:404/error", {
+
+  fetch("http://127.0.0.1:4004/error", {
+    headers: new Headers([["Content-Type", "application/json"]]),
     body: JSON.stringify(data),
     method: "POST"
   }).then(() => {
     cache.delete(key)
   })
 }
+```
+
+## 服务端收集error信息
+
+这里简单方便先以express实现一个简易的服务器：
+
+```typescript
+import express from "express"
+import cors from "cors"
+
+const app = express()
+
+app.use(express.json())
+app.use(cors())
+
+app.get("/health", async (req, res) => {
+  res.json({
+    message: "very well!"
+  })
+})
+app.post("/error", async (req, res) => {
+  console.log(req.body)
+  /*
+  {
+    type: 'onerror',
+    lineno: 3,
+    colno: 41,
+    message: "Uncaught TypeError: Cannot read properties of null (reading 'name')",
+    stack: "TypeError: Cannot read properties of null (reading 'name')\n" +        
+      '    at fn (http://localhost:5173/src/errors.ts:3:41)\n' +
+      '    at el.onclick (http://localhost:5173/src/errors.ts:4:5)'
+  }
+  * */
+  res.json({
+    message: "ok"
+  })
+})
+
+app.listen(4004, () => {
+  console.log(`Server ready at: http://localhost:4004`)
+})
 ```
 
 
