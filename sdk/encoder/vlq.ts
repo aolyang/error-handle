@@ -24,6 +24,16 @@ const encoder = (num: number) => {
   return result
 }
 
-console.log(encoder(7)) // O
-console.log(encoder(1200)) // grC
-console.log(encoder(-17)) // jB
+export const encode = (num: number | number[]) => {
+  if (typeof num === "number") return encoder(num)
+  else {
+    return num.reduce((pre, n) => pre += encoder(n), "")
+  }
+}
+
+//在线检测 https://www.murzwin.com/base64vlq.html
+console.log(encode(7)) // O
+console.log(encode(16)) // gB
+console.log(encode(1200)) // grC
+console.log(encode(-17)) // jB
+console.log(encode([710,0,0,0])) // ssBAAA
