@@ -1,169 +1,221 @@
 # 浅析前端错误监控
 
-这篇文章介绍的核心内容：**Source Map**、**Error handling**、**Error report**
+核心内容：**sourcemap**、**错误发现和收集**、**错误统计和上报**、**错误监控和分析**、**堆栈信息还原**
 
 **为什么我们需要对错误进行监控？**
 
-在生产环境（尤其中小型公司），大多数web应用还是没有进行或者完善单元测试或者自动化测试，使得程序在实际使用中会泄露众多BUG。
-当应用已经发布到生产环境时再解决BUG还是太晚了。而前端代码总是通过混淆后发布到生产环境，使得定位错误困难重重。  
-所以，我们需要一种可靠的手段监控应用的健康，并在发生错误时迅速的定位问题和反馈问题。
+在生产环境，大多数web应用（尤其中小型公司）还是没有（或没有成本去实现）完善的单元测试或者自动化测试，使得程序在使用中会泄露众多BUG。
+当应用发布到生产环境时出现BUG会造成糟糕的用户体验，甚至影响整个程序的运行。所以，我们需要一种可靠的手段监控应用的健康，并在发生错误时迅速的定位问题、反馈问题。
+
+而前端代码总是通过编译、转换混淆和压缩后发布到生产环境，使得定位错误困难重重。
 
 **错误监控系统？**
 
-错误监控是将程序运行时发生各种错误收集、统计，及时上报反馈到管理中心，便于研发更快发现和修复错误的系统。一般错误监控系统包含**
-错误发现和收集**，**错误统计和上报**，**堆栈等信息还原**三个核心模块。
+程序运行时将发生各种错误，在不影响程序运行的情况下，将错误快速有效地收集、统计，反馈到管理中心，便于研发更快发现和修复错误地一套系统便是错误监控系统。一般错误监控系统包含三个核心模块：
 
-+ **错误发现和收集**是在程序运行中发生错误时，及时监测错误发生的位置、错误的类型并将其收集起来；
-+ **错误统计和上报**是在错误发生并收集到信息后，进行有效的过滤和简单统计并将信息上报给统计系统存储；
-+ **堆栈等信息还原**
-  模块部署在公司面向研发，用于接受错误信息并存储和分析。由于生产环境代码通常经过编译和转换，上报的错误信息并不能直接使用，但可以利用SourceMap等数据还原堆栈信息、定位错误位置等；
++ **错误发现和收集**：在程序运行中发生错误时，及时监测错误发生的位置、类型并将其收集起来；
++ **错误统计和上报**：收集到错误信息后，可能会进行临时缓存、过滤、简单加工或者简单统计等操作，然后将信息上报给统计系统后端存储；
++ **错误监控和分析**：错误监控服务面向研发，一般私有部署在公司内部。监控部分接收客户端监听错误、主动上报错误、日志等信息，并存储和统计；分析部分将收集的信息和错误源信息以列表、图表等形式展示，方便研发人员查阅。生产环境的错误一般发生在代码编译和混淆之后，错误信息已经很难定位代码位置，所以，分析部分通常还有**堆栈信息还原**、**代码定位**等功能。
 
-## 错误发现和收集
+## 0x01 错误发现和收集
 
 ### 常见的错误类型
 
-1. **常见js错误**
+**1. 常见js错误**
 
-    ```js
-    // SyntaxError 语法错误，一般编译检查会过滤掉
-    
-    // TypeError 数据类型不一致
-    const fn = (obj) => obj.name
-    fn(null)
-    
-    // RangeError 内存溢出，堆栈溢出，死循环，无限递归等等
-    
-    // 网络错误
-    // ResourceError 资源加载错误
-    new Image().src = "路径不存在或者请求你出问题"
-    
-    // 接口错误没有catch
-    fetch("api") /* .catch(e => ...)*/
-    
-    // 没有处理的异步错误
-    const fn = async () => {
-      // error
-    }
-    new Promise(() => {
-      // error
-    })
-    ```
+```javascript
+// SyntaxError 语法错误，一般编译检查会过滤掉
 
-2. **Vue错误**
+// TypeError 数据类型不一致
+const fn = (obj) => obj.name
+fn(null)
 
-   vue通过全局配置errorHandler手机错误
+// RangeError 内存溢出，堆栈溢出，死循环，无限递归等等
 
-    ```js
-    Vue.config.errorHandler = function (err) {
-      errorService.vueErrorAdapter(err)
-    }
-    ```
+// 网络错误
+// ResourceError 资源加载错误
+new Image().src = "路径不存在或者请求你出问题"
 
-3. **React ErrorBoundary**
+// 接口错误没有catch
+fetch("api") /* .catch(e => ...)*/
 
-   react通过声明错误边界组件收集错误信息。
+// 没有处理的异步错误
+const fn = async () => {
+  // error
+}
+new Promise(() => {
+  // error
+})
+```
 
-    ```js
-    class ErrorBoundary extends React.Component {
-      componentDidCatch(error, errorInfo) {
-        errorService.reactErrorAdapter(error, errorInfo);
-      }
-    }
-    ```
+**2. Vue错误**
+
+vue通过全局配置errorHandler手机错误
+
+```javascript
+Vue.config.errorHandler = function (err) {
+  errorService.vueErrorAdapter(err)
+}
+```
+
+**3. React ErrorBoundary**
+
+react通过声明错误边界组件收集错误信息。
+
+```javascript
+class ErrorBoundary extends React.Component {
+  componentDidCatch(error, errorInfo) {
+    errorService.reactErrorAdapter(error, errorInfo);
+  }
+}
+```
 
 ### 错误并不好收集
 
-1. **try/catch**无法捕获**语法**和**异步**错误
+**1. try/catch**无法捕获**语法**和**异步**错误
 
-   ```js
-   // 语法错误，不能捕获 ❌
-   try {
-     const notdefined,
-   } catch(e) {
-     console.log('捕获到异常：', e);
-   }
-   
-   // 异步错误，不能捕获 ❌
-   try {
-     setTimeout(() => {
-       console.log(notdefined);
-     }, 0)
-   } catch(e) {
-     console.log('捕获到异常：',e);
-   }
-   try {
-     new Promise((resolve,reject) => { 
-       JSON.parse('')
-       resolve();
-     })
-   } catch(err) {
-     console.error('catch', err)
-   }
-   ```
+```javascript
+// 语法错误，不能捕获 ❌
+try {
+ const notdefined,
+} catch(e) {
+ console.log('捕获到异常：', e);
+}
 
-2. **window.onerror**可以捕获运行时错误和异步错误，无法捕获**语法**错误和**资源**
-   错误
-
-   ```js
-   window.onerror = function(message, source, lineno, colno, error) {
-     console.log('捕获到异常：',{message, source, lineno, colno, error});
-   }
-   
-   // 常规运行时错误，可以捕获 ✅
+// 异步错误，不能捕获 ❌
+try {
+ setTimeout(() => {
    console.log(notdefined);
-   
-   // 异步错误，可以捕获 ✅
-   setTimeout(() => {
-     console.log(notdefined);
-   }, 0)
-   
-   // 语法错误，不能捕获 ❌
-   const notdefined,
-         
-   // 资源错误，不能捕获 ❌
-   // <img src="assets.png">
-   ```
+ }, 0)
+} catch(e) {
+ console.log('捕获到异常：',e);
+}
+try {
+ new Promise((resolve,reject) => { 
+   JSON.parse('')
+   resolve();
+ })
+} catch(err) {
+ console.error('catch', err)
+}
+```
 
-3. **window.addEventListener(“error”)**无法捕获**new Image**和**fetch**
+**2. window.onerror**可以捕获运行时错误和异步错误，无法捕获**语法**错误和**资源**错误
 
-   > 当一项资源（如图片或脚本）加载失败，**加载资源**的元素会触发一个 Event 接口的
-   error 事件，这些 error 事件**不会向上冒泡**到 window，**但能被捕获**
-   。而window.onerror不能监测捕获。
+```javascript
+window.onerror = function(message, source, lineno, colno, error) {
+ console.log('捕获到异常：',{message, source, lineno, colno, error});
+}
 
-   ```html
-   <script>
-       window.addEventListener('error', (error) => {
-           console.log('捕获到异常：', error);
-       }, true) 
-   </script>
-   // 图片、script、css加载错误，都能被捕获 ✅
-   <img src="https://example.com/image/kkk.png" alt="">
-   <script src="resources.js"></script>
-   <link href="resources.css" rel="stylesheet"/>
-   <script>
-   // new Image错误，不能捕获 ❌
-   new Image().src = 'https://example.com/image/lll.png'
-   
-   
-   // fetch错误，不能捕获 ❌
-   fetch('api/v1/data')
-   </script>
-   ```
+// 常规运行时错误，可以捕获 ✅
+console.log(notdefined);
+
+// 异步错误，可以捕获 ✅
+setTimeout(() => {
+ console.log(notdefined);
+}, 0)
+
+// 语法错误，不能捕获 ❌
+const notdefined,
+     
+// 资源错误，不能捕获 ❌
+// <img src="assets.png">
+```
+
+**3. window.addEventListener(“error”)**无法捕获**new Image**和**fetch**
+
+> 当一项资源（如图片或脚本）加载失败，**加载资源**的元素会触发一个 Event 接口的
+error 事件，这些 error 事件**不会向上冒泡**到 window，**但能被捕获**
+。而window.onerror不能监测捕获。
+
+```html
+<script>
+   window.addEventListener('error', (error) => {
+       console.log('捕获到异常：', error);
+   }, true) 
+</script>
+// 图片、script、css加载错误，都能被捕获 ✅
+<img src="https://example.com/image/kkk.png" alt="">
+<script src="resources.js"></script>
+<link href="resources.css" rel="stylesheet"/>
+<script>
+// new Image错误，不能捕获 ❌
+new Image().src = 'https://example.com/image/lll.png'
 
 
-4. **window.addEventListener("unhandledrejection")**可以捕获Promise错误
+// fetch错误，不能捕获 ❌
+fetch('api/v1/data')
+</script>
+```
 
-   ```js
-   // 全局统一处理Promise
-   window.addEventListener("unhandledrejection", function(e){
-     console.log('捕获到异常：', e);
-   });
-   fetch('api/v1/data')
-   ```
+**4. window.addEventListener("unhandledrejection")**可以捕获Promise错误
 
+```javascript
+// 全局统一处理Promise
+window.addEventListener("unhandledrejection", function(e){
+ console.log('捕获到异常：', e);
+});
+fetch('api/v1/data')
+```
+
+**5. wrap了fetch api的promise会发送错误的reject**
+
+```javascript
+// 例如包装原生fetch api
+const f = window.fetch;
+window.fetch = function () {
+  const p = f.apply(this, arguments)
+  // 而`p.then`这个新的promise chain总会返回一个错误的reject信息
+  p.then(function() {
+    console.log('hi.');
+  })
+
+  return p;
+}
+```
+有很多情况下，另一些工具库或者广告拦截器会包装原生fetch api，这些api会拦截函数执行，并将结果重新返回。这个总是reject的错误会在处理过程（上报 >> reject >> 收集 >> 上报 >> reject ...）中引发无限循环。因此，我们需要拿到window上的原生fetch。
+
+```typescript
+let cachedFetchImpl: FetchImpl | undefined = undefined
+
+export type FetchImpl = typeof fetch
+
+const isNativeFetch = (func: Function): boolean => {
+  return func && /^function fetch\(\)\s+\{\s+\[native code]\s+}$/.test(func.toString())
+}
+
+const getNativeFetch = () => {
+  if (cachedFetchImpl) return cachedFetchImpl
+
+
+  if (isNativeFetch(window.fetch)) {
+    return (cachedFetchImpl = window.fetch.bind(window))
+  }
+
+  const document = window.document
+  let fetchImpl = window.fetch
+
+  if (document && typeof document.createElement === 'function') {
+    try {
+      const sandbox = document.createElement('iframe')
+      sandbox.hidden = true
+      document.head.appendChild(sandbox)
+      const contentWindow = sandbox.contentWindow
+      if (contentWindow && contentWindow.fetch) {
+        fetchImpl = contentWindow.fetch
+      }
+      document.head.removeChild(sandbox)
+    } catch (e) {
+        console.error('Could not create sandbox iframe for pure fetch check: ', e)
+    }
+  }
+
+  return (cachedFetchImpl = fetchImpl.bind(window))
+}
+```
 ### 错误收集实现
 
-**通过三种方式监听错误**
+**全局简单地通过三种方式监听错误**
 
 ```ts
 // listener.ts
@@ -233,7 +285,7 @@ export const reportError = (data: IReportData) => {
 }
 ```
 
-## 简易服务端收集error信息
+## 0x02 简易服务端收集error信息
 
 这里简单方便先以express实现一个简易的服务器：
 
@@ -276,10 +328,9 @@ app.listen(4004, () => {
 
 拿到错误信息和位置信息之后，就要考虑如何将生产环境的代码映射到源代码上了。这时我们需要一个记录编译前后位置信息的交换文件**sourcemap**文件。
 
-## 代码映射文件 Source Map
+## 0x03 代码映射文件 sourcemap
 
-很早之前，为了解决JavaScript脚本越来越复杂且越来越大的问题，通常大部分源码都要通过转换、压缩等方法才能投入到生产环境。通常的情况是**
-压缩**、**文件合并**以减少HTTP请求、**语言转换**
+很早之前，为了解决JavaScript脚本越来越复杂且越来越大的问题，通常大部分源码都要通过转换、压缩等方法才能投入到生产环境。通常的情况是**压缩**、**文件合并**以减少HTTP请求、**语言转换**
 （如CoffeeScript、Typescript到JavaScript）。
 
 最后生产环境得到的代码的是混淆的并且难以阅读的：
@@ -291,7 +342,7 @@ map就是为了解决这些问题。**简单来讲，Source
 Map就是一个信息文件，存储了代码的位置信息，能从转换后代码的位置信息映射到转换前代码的位置信息上**
 。
 
-### 什么是Source Map？
+### 什么是sourcemap？
 
 **sourcemap文件格式**
 
@@ -311,7 +362,7 @@ Map就是一个信息文件，存储了代码的位置信息，能从转换后�
 }
 ```
 
-**version**：Source Map的版本，目前为3。
+**version**：sourcemap的版本。
 
 **file**：转换后的文件名。
 
@@ -329,7 +380,7 @@ Map就是一个信息文件，存储了代码的位置信息，能从转换后�
 
 #### mappings的存储结构
 
-**Source Map**实现映射的关键便是**mappings**属性。mappings是一个很长的字符串，分为三种标志：
+**sourcemap**实现映射的关键便是**mappings**属性。mappings是一个很长的字符串，分为三种标志：
 
 **第一种是行对应**，以分号（;）结尾，每个分号对应转换后源码的一行（group **组**）。
 
@@ -344,7 +395,7 @@ Map就是一个信息文件，存储了代码的位置信息，能从转换后�
 开始且表示第一个位置信息，逗号（**,**）后的下一串字符**IAAM**
 表示第二个位置，知道下一个分号开始，表示第五行位置信息，依次类推。
 
-#### VLQ编码
+#### 什么是VLQ编码(Variable-length quantity)？
 
 VLQ是用来表示任意大小数字的编码方式。VLQ的概念很简单（假设这里VLQ单位长度为8
 bits）: 数字在VLQ中以n个8位二进制位表示，最高位为标志位，0表示不连续，1表示连续。
@@ -402,82 +453,82 @@ VLQ的单位也是6位，即最高位表示连续，低5位表示实际数据。
 
 #### mappings如何表示代码位置
 
-1. **通过记录字符转换前后的位置**
+**1. 通过记录字符转换前后的位置**
 
-   > “feel **the** force” ⇒ 转换 ⇒ “**the** force feel”
+> “feel **the** force” ⇒ 转换 ⇒ “**the** force feel”
 
-   | 输出位置(Output)     | 文件(sources)    | 输入位置(Input)      | 符号（names) |
-   |:-----------------|:---------------|:-----------------|:----------|
-   | Line 1, Column 0 | Yoda_input.txt | Line 1, Column 5 | t         |
-   | Line 1, Column 1 | Yoda_input.txt | Line 1, Column 6 | h         |
-   | Line 1, Column 2 | Yoda_input.txt | Line 1, Column 7 | e         |
+| 输出位置(Output)     | 文件(sources)    | 输入位置(Input)      | 符号（names) |
+|:-----------------|:---------------|:-----------------|:----------|
+| Line 1, Column 0 | Yoda_input.txt | Line 1, Column 5 | t         |
+| Line 1, Column 1 | Yoda_input.txt | Line 1, Column 6 | h         |
+| Line 1, Column 2 | Yoda_input.txt | Line 1, Column 7 | e         |
 
-   mappings里记录的是符号的输入输出位置信息和字符信息，手动填入mappings以单词**
-   the**
-   为例（line|col|file|line|col)：
+mappings里记录的是符号的输入输出位置信息和字符信息，手动填入mappings以单词**
+the**
+为例（line|col|file|line|col)：
 
-   `mappings=1|0|Yoda_input.txt|1|5,1|1|Yoda_input.txt|1|6,1|2|Yoda_input.txt|1|7`
+`mappings=1|0|Yoda_input.txt|1|5,1|1|Yoda_input.txt|1|6,1|2|Yoda_input.txt|1|7`
 
-   因此，可以通过转换后的文本位置映射回之前的文本信息。
+因此，可以通过转换后的文本位置映射回之前的文本信息。
 
-2. **优化行信息**
+**2. 优化行信息**
 
-   用**分号**（;)分隔表示输出行信息，这样可以少记录一个标志，如下：
+用**分号**（;)分隔表示输出行信息，这样可以少记录一个标志，如下：
 
-    ```
-    feel the force;              line other 1;
-    other line 1;    ⇒ 转换 ⇒    the force feel;
-    ...                        ...
-    ```
+```
+feel the force;              line other 1;
+other line 1;    ⇒ 转换 ⇒    the force feel;
+...                        ...
+```
 
-   | 输出位置(Output)     | 文件(sources)    | 输入位置(Input)      | 符号（names) |
-   |:-----------------|:---------------|:-----------------|:----------|
-   | Line 2, Column 0 | Yoda_input.txt | Line 1, Column 5 | t         |
-   | Line 2, Column 1 | Yoda_input.txt | Line 1, Column 6 | h         |
-   | Line 2, Column 2 | Yoda_input.txt | Line 1, Column 7 | e         |
+| 输出位置(Output)     | 文件(sources)    | 输入位置(Input)      | 符号（names) |
+|:-----------------|:---------------|:-----------------|:----------|
+| Line 2, Column 0 | Yoda_input.txt | Line 1, Column 5 | t         |
+| Line 2, Column 1 | Yoda_input.txt | Line 1, Column 6 | h         |
+| Line 2, Column 2 | Yoda_input.txt | Line 1, Column 7 | e         |
 
-   如上，单词**the**从第一行的位置转换后到了第二行，在mappings里用分号表示行分隔信息时，可以如下表示：
+如上，单词**the**从第一行的位置转换后到了第二行，在mappings里用分号表示行分隔信息时，可以如下表示：
 
-   `mappings=......;0|Yoda_input.txt|1|5,1|Yoda_input.txt|1|6,2|Yoda_input.txt|1|7`
+`mappings=......;0|Yoda_input.txt|1|5,1|Yoda_input.txt|1|6,2|Yoda_input.txt|1|7`
 
-   忽略第一行的信息，在第一个分号之后第二个分号之前表示整个字符串都在第二行。
+忽略第一行的信息，在第一个分号之后第二个分号之前表示整个字符串都在第二行。
 
-3. **整合一下数据**
+**3. 整合一下数据**
 
-   当然我们不可能在mappings的段里都写上**Yoda_input.txt**文件名，那就用**
-   sources**
-   表示资源位置吧：
+当然我们不可能在mappings的段里都写上**Yoda_input.txt**文件名，那就用**
+sources**
+表示资源位置吧：
 
-    ```json
-    {
-      "sources": [
-        "Yoda_input.txt"
-      ],
-      "mappings": "...;0|0|1|5,1|0|1|6,2|0|1|7"
-    }
-    ```
+ ```json
+ {
+   "sources": [
+     "Yoda_input.txt"
+   ],
+   "mappings": "...;0|0|1|5,1|0|1|6,2|0|1|7"
+ }
+ ```
 
-4. **优化字符映射**
+**4. 优化字符映射**
 
-   我们也不可能在使用sourcemap时真的去读取文件，查询索引信息再恢复输入输出文件，这样即耗费性能也非常的慢，有没有什么方式只需要sourcemap文件就可以还原输入和输出文件呢？答案是有：
+我们也不可能在使用sourcemap时真的去读取文件，查询索引信息再恢复输入输出文件，这样即耗费性能也非常的慢，有没有什么方式只需要sourcemap文件就可以还原输入和输出文件呢？答案是有：
 
-   sourcemap将转换和修改的符号表保存在names字段里，最后一位新增一个索引位在names里交换出符号信息。
+sourcemap将转换和修改的符号表保存在names字段里，最后一位新增一个索引位在names里交换出符号信息。
 
-    ```json
-    {
-      "sources": [
-        "Yoda_input.txt"
-      ],
-      "names": [
-        "t",
-        "h",
-        "e"
-      ],
-      "mappings": "...;0|0|1|5|0,1|0|1|6|1,2|0|1|7|2"
-    }
-    ```
+ ```json
+ {
+   "sources": [
+     "Yoda_input.txt"
+   ],
+   "names": [
+     "t",
+     "h",
+     "e"
+   ],
+   "mappings": "...;0|0|1|5|0,1|0|1|6|1,2|0|1|7|2"
+ }
+ ```
 
-5. **用Base64 VLQ优化信息存储**
+**5. 用Base64 VLQ优化信息存储**
 
    该有的都有了，但我们还有两个最大的问题要处理：
 
@@ -535,103 +586,103 @@ VLQ的单位也是6位，即最高位表示连续，低5位表示实际数据。
     console.log(encode([710, 0, 0, 0])) // ssBAAA
     ```
 
-6. **优化列信息**
+**6. 优化列信息**
 
-   如果列信息始终使用绝对位置，则mappings每个字段都会存储过多较大的数字（如列112，列116，列120），如果出行第一个字段保持绝对位置记录行首空格信息为，其他列信息采用相对位置存储，则可以让数字小很多（如列4，列+6=10，列+12=22
-   …… 依次计算）。
+如果列信息始终使用绝对位置，则mappings每个字段都会存储过多较大的数字（如列112，列116，列120），如果出行第一个字段保持绝对位置记录行首空格信息为，其他列信息采用相对位置存储，则可以让数字小很多（如列4，列+6=10，列+12=22
+…… 依次计算）。
 
-   因为数据的可变长以及正负标记等因素，**此优化需要VLQ编码作为前提**。
+因为数据的可变长以及正负标记等因素，**此优化需要VLQ编码作为前提**。
 
-7. **优化字符映射**
+**7. 优化字符映射**
 
-   ```
-   feel the force;              l other 1;
-   other line 1;    ⇒ 转换 ⇒    t force feel;   （存储   names: [the, line]）
-   read the line;               read t l
-   ...                        ...
-   ```
+```
+feel the force;              l other 1;
+other line 1;    ⇒ 转换 ⇒    t force feel;   （存储   names: [the, line]）
+read the line;               read t l
+...                        ...
+```
 
-   实际中代码的转换远比这个例子复杂许多。为了减少代码体积，通常会将单词提取成较短的字母数字组合。
+实际中代码的转换远比这个例子复杂许多。为了减少代码体积，通常会将单词提取成较短的字母数字组合。
 
-   | 输出位置(Output)     | 文件(sources)    | 输入位置(Input)      | 符号（names)      |
-   |:-----------------|:---------------|:-----------------|:---------------|
-   | Line 2, Column 0 | Yoda_input.txt | Line 1, Column 5 | the => t => 0  |
-   | Line 1, Column 0 | Yoda_input.txt | Line 2, Column 6 | line => l => 1 |
-   | Line 3, Column 7 | Yoda_input.txt | Line 1, Column 9 | line => l => 1 |
+| 输出位置(Output)     | 文件(sources)    | 输入位置(Input)      | 符号（names)      |
+|:-----------------|:---------------|:-----------------|:---------------|
+| Line 2, Column 0 | Yoda_input.txt | Line 1, Column 5 | the => t => 0  |
+| Line 1, Column 0 | Yoda_input.txt | Line 2, Column 6 | line => l => 1 |
+| Line 3, Column 7 | Yoda_input.txt | Line 1, Column 9 | line => l => 1 |
 
-   以单词**the**，**line**
-   为例，分别在转换前和转换后进行了位置改变和字符替换，最后一位新增一个符号映射位索引替换的字符。位置信息记录在上表，则在sourcemap里的结果如下(
-   省略其它字符）：
+以单词**the**，**line**
+为例，分别在转换前和转换后进行了位置改变和字符替换，最后一位新增一个符号映射位索引替换的字符。位置信息记录在上表，则在sourcemap里的结果如下(
+省略其它字符）：
 
-   ```json
-   {
-     "names": [
-       "the",
-       "line"
-     ],
-     "sources": [
-       "Yoda_input.txt"
-     ],
-     "mappings": "0|1|2|6|1;0|1|1|5|0;7|1|1|9|1"
-   }
-   ```
+```json
+{
+  "names": [
+    "the",
+    "line"
+  ],
+  "sources": [
+    "Yoda_input.txt"
+  ],
+  "mappings": "0|1|2|6|1;0|1|1|5|0;7|1|1|9|1"
+}
+```
 
-   代码实现（[完整实现](./sdk/sourcemap.ts)）：
+代码实现（[完整实现](./sdk/sourcemap.ts)）：
 
-   ```typescript
-   export default class SourceMap {
-     files: string[] = []
-     mappings: Mapping[] = []
-     names: string[] = []
-     target: string
-     sourceRoot?: string
-    
-     // 计算相对位置并使用VLQ编码存储
-     toMap(sourceContent?: string): string {
-       const mappingArray = this.mappings.sort((a, b) => a.offset - b.offset)
-       let previousOffset = 0
-       let previousLine = 0
-       let previousColumn = 0
-       let previousFile = 0
-       let previousName = 0
-    
-       const mappings = mappingArray.map(instance => {
-         const offset = instance.offset - previousOffset
-         const line = (instance.line - 1) - previousLine
-         const column = (instance.column - 1) - previousColumn
-         const file = instance.fileIndex - previousFile
-         let name: number | undefined = undefined
-         const n = instance.name
-         if (n) {
-           name = n - previousName
-           previousName = n
-         }
-         previousOffset = instance.offset
-         previousLine = (instance.line - 1)
-         previousColumn = (instance.column - 1)
-         previousFile = instance.fileIndex
-    
-         return encode([offset, file, line, column]) + (name === undefined ? "" : encode(name))
-       }).join(",")
-    
-       const mapData: SourceMapData = {
-         version: "3",
-         sources: this.files,
-         names: this.names,
-         mappings
-       }
-       if (sourceContent) {
-         mapData.sourceContent = sourceContent
-       }
-       if (this.target) mapData.file = this.target
-       if (this.sourceRoot) mapData.sourceRoot = this.sourceRoot
-    
-       return JSON.stringify(mapData)
-     }
-   }
-   ```
+```typescript
+export default class SourceMap {
+  files: string[] = []
+  mappings: Mapping[] = []
+  names: string[] = []
+  target: string
+  sourceRoot?: string
+ 
+  // 计算相对位置并使用VLQ编码存储
+  toMap(sourceContent?: string): string {
+    const mappingArray = this.mappings.sort((a, b) => a.offset - b.offset)
+    let previousOffset = 0
+    let previousLine = 0
+    let previousColumn = 0
+    let previousFile = 0
+    let previousName = 0
+ 
+    const mappings = mappingArray.map(instance => {
+      const offset = instance.offset - previousOffset
+      const line = (instance.line - 1) - previousLine
+      const column = (instance.column - 1) - previousColumn
+      const file = instance.fileIndex - previousFile
+      let name: number | undefined = undefined
+      const n = instance.name
+      if (n) {
+        name = n - previousName
+        previousName = n
+      }
+      previousOffset = instance.offset
+      previousLine = (instance.line - 1)
+      previousColumn = (instance.column - 1)
+      previousFile = instance.fileIndex
+ 
+      return encode([offset, file, line, column]) + (name === undefined ? "" : encode(name))
+    }).join(",")
+ 
+    const mapData: SourceMapData = {
+      version: "3",
+      sources: this.files,
+      names: this.names,
+      mappings
+    }
+    if (sourceContent) {
+      mapData.sourceContent = sourceContent
+    }
+    if (this.target) mapData.file = this.target
+    if (this.sourceRoot) mapData.sourceRoot = this.sourceRoot
+ 
+    return JSON.stringify(mapData)
+  }
+}
+```
 
-### 使用Source Map
+### 使用sourcemap
 
 编译转换后的代码要使用sourcemap，只需要在文件末尾加一行注释即可：
 
@@ -641,7 +692,7 @@ VLQ的单位也是6位，即最高位表示连续，低5位表示实际数据。
 
 ![image-20230104175408384](./assets/sourcemap-settings.png)
 
-## 堆栈信息还原
+## 0x04 堆栈信息还原
 
 知道生产环境如何上报错误，知道sourcemap原理如何之后，我们就要着手从错误信息中还原出源代码错误的位置。
 
@@ -732,7 +783,7 @@ app.post("/error", async (req, res) => {
 
 ![image-20230104223806840](./assets/reveal.png)
 
-## 丰富信息与生产问题
+## 0x05 丰富信息与生产问题
 
 + 界面可以通过传递更多的error type，主动catch易错误点以达到更好的监控效果；
 
@@ -750,13 +801,13 @@ app.post("/error", async (req, res) => {
 
 ### sourcemap
 
-1. Source Maps under the hood – VLQ, Base64 and Yoda. (https://learn.microsoft.com/en-us/archive/blogs/davidni/source-maps-under-the-hood-vlq-base64-and-yoda)
-2. Source Map Revision 3 Proposal. (https://docs.google.com/document/d/1U1RGAehQwRypUTovF1KRlpiOFze0b-_2gc6fAH0KY0k/edit) (https://docs.google.com/document/d/1U1RGAehQwRypUTovF1KRlpiOFze0b-_2gc6fAH0KY0k/edit)
+1. sourcemaps under the hood – VLQ, Base64 and Yoda. (https://learn.microsoft.com/en-us/archive/blogs/davidni/source-maps-under-the-hood-vlq-base64-and-yoda)
+2. sourcemap Revision 3 Proposal. (https://docs.google.com/document/d/1U1RGAehQwRypUTovF1KRlpiOFze0b-_2gc6fAH0KY0k/edit) (https://docs.google.com/document/d/1U1RGAehQwRypUTovF1KRlpiOFze0b-_2gc6fAH0KY0k/edit)
 3. SourceMap详解. (https://juejin.cn/post/6948951662144782366)
-4. JavaScript Source Map 详解. (http://www.ruanyifeng.com/blog/2013/01/javascript_source_map.html)
-5. source map 的原理探究. (https://github.com/wayou/wayou.github.io/issues/9)
+4. JavaScript sourcemap 详解. (http://www.ruanyifeng.com/blog/2013/01/javascript_source_map.html)
+5. sourcemap 的原理探究. (https://github.com/wayou/wayou.github.io/issues/9)
 
-### Base64, VLQ， Base64 VLQ编码
+### Base64，VLQ，Base64 VLQ编码
 
 1. Variable-length quantity. (https://en.wikipedia.org/wiki/Variable-length_quantity)
 2. GITHUB js-base64. (https://github.com/dankogai/js-base64/tree/main)
