@@ -105,7 +105,7 @@ try {
 
 ```javascript
 window.onerror = function(message, source, lineno, colno, error) {
- console.log('捕获到异常：',{message, source, lineno, colno, error});
+ console.log('an error occur：',{message, source, lineno, colno, error});
 }
 
 // regular javascript error ✅
@@ -364,19 +364,13 @@ Such code even if devtools tells you where the error occurred, you can not get a
 }
 ```
 
-**version**：sourcemap proposal version, current 3.
-
-**file**：An optional name of the generated code that this source map is associated with.
-
-**sourceRoot**：An optional source root, useful for relocating source files on a server or removing repeated values in the “sources” entry. This value is prepended to the individual entries in the “source” field.
-
-**sources**：A list of original sources used by the “mappings” entry.
-
-**names**：A list of symbol names used by the “mappings” entry.
-
-**mappings**：A string with the encoded mapping data.
-
-**sourcesContent**：optional. source code corresponding to the file in sources field.
+**version**：sourcemap proposal version, current 3.  
+**file**：An optional name of the generated code that this source map is associated with.  
+**sourceRoot**：An optional source root, useful for relocating source files on a server or removing repeated values in the “sources” entry. This value is prepended to the individual entries in the “source” field.  
+**sources**：A list of original sources used by the “mappings” entry.  
+**names**：A list of symbol names used by the “mappings” entry.  
+**mappings**：A string with the encoded mapping data.  
+**sourcesContent**：optional. source code corresponding to the file in sources field.  
 
 ### How mapping data map source code？
 
