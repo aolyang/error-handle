@@ -50,7 +50,7 @@ new Promise(() => {
 
 **2. Vue错误**
 
-vue通过全局配置errorHandler手机错误
+vue通过全局配置errorHandler收集错误
 
 ```javascript
 Vue.config.errorHandler = function (err) {
@@ -213,6 +213,8 @@ const getNativeFetch = () => {
   return (cachedFetchImpl = fetchImpl.bind(window))
 }
 ```
+**更多错误收集方式可以参考**  [getsentry/sentry-javascript/packages](https://github.com/getsentry/sentry-javascript/tree/master/packages)
+
 ### 错误收集实现
 
 **全局简单地通过三种方式监听错误**
@@ -287,7 +289,7 @@ export const reportError = (data: IReportData) => {
 
 ## 0x02 简易服务端收集error信息
 
-这里简单方便先以express实现一个简易的服务器：
+这里先用express实现一个简易的服务器：
 
 ```typescript
 import express from "express"
@@ -326,21 +328,19 @@ app.listen(4004, () => {
 })
 ```
 
-拿到错误信息和位置信息之后，就要考虑如何将生产环境的代码映射到源代码上了。这时我们需要一个记录编译前后位置信息的交换文件**sourcemap**文件。
+拿到错误信息和位置信息之后，就要考虑如何将生产环境的代码映射到源代码上了。实现这个功能，我们需要一个记录编译前后位置信息的交换文件，**sourcemap**文件。
 
 ## 0x03 代码映射文件 sourcemap
 
-很早之前，为了解决JavaScript脚本越来越复杂且越来越大的问题，通常大部分源码都要通过转换、压缩等方法才能投入到生产环境。通常的情况是**压缩**、**文件合并**以减少HTTP请求、**语言转换**
-（如CoffeeScript、Typescript到JavaScript）。
+很早之前，为了解决JavaScript脚本越来越复杂、越来越大的问题，通常大部分源码都要通过转换、压缩等方法才能投入到生产环境。通常的情况是**压缩**、**文件合并**以减少HTTP请求、**语言转换**（如CoffeeScript、Typescript到JavaScript）。
 
-最后生产环境得到的代码的是混淆的并且难以阅读的：
+最终，生产环境的代码的是混淆的并且难以阅读的：
 
 ![ugly-code](./assets/ugly-code.png)
 
-这样的代码即时devtools告诉你错误发生在了什么位置，你也无法从这些信息中得到什么有用信息，而source
-map就是为了解决这些问题。**简单来讲，Source
-Map就是一个信息文件，存储了代码的位置信息，能从转换后代码的位置信息映射到转换前代码的位置信息上**
-。
+这样的代码即使devtools告诉你错误发生在了什么位置，你也无法从这些信息中得到什么有用信息，而sourcemap就是为了解决这些问题。
+
+**简单来讲，sourcemap就是一个信息文件，存储了代码的位置信息，能从转换后代码的位置信息映射到转换前代码的位置信息上**。
 
 ### 什么是sourcemap？
 
@@ -374,7 +374,7 @@ Map就是一个信息文件，存储了代码的位置信息，能从转换后�
 
 **mappings**：记录位置信息的字符串，下文详细介绍。
 
-**sourcesContent**：源代码内容（一般没用，当代码无法hosted或者程序性获取的时候）。
+**sourcesContent**：源代码内容（一般没用，当代码无法host或程序性获取的时候）。
 
 ### mappings 如何映射文件信息？
 
@@ -384,16 +384,12 @@ Map就是一个信息文件，存储了代码的位置信息，能从转换后�
 
 **第一种是行对应**，以分号（;）结尾，每个分号对应转换后源码的一行（group **组**）。
 
-**第二种是位置对应**
-，以逗号（,）分隔，每个逗号隔开的一串字符对应转换后源码的一个位置（segment **段**）。
+**第二种是位置对应**，以逗号（,）分隔，每个逗号隔开的一串字符对应转换后源码的一个位置（segment **段**）。
 
-**第三种是位置转换**
-，逗号分隔开的字符串。以Base64 [VLQ编码]([Variable-length quantity - Wikipedia](https://en.wikipedia.org/wiki/Variable-length_quantity))
-表示，代表该位置对应的转换前的源码位置。
+**第三种是位置转换**，逗号分隔开的字符串。以Base64 [VLQ编码]([Variable-length quantity - Wikipedia](https://en.wikipedia.org/wiki/Variable-length_quantity))表示，代表该位置对应的转换前的源码位置。
 
-如上格式，三个分号（**;**）表示前三行没有映射（或不需要），第四行的位置信息从**AAAO**
-开始且表示第一个位置信息，逗号（**,**）后的下一串字符**IAAM**
-表示第二个位置，知道下一个分号开始，表示第五行位置信息，依次类推。
+如`{ "mappings": ";;;AAAO,IAAM, ..." }`，三个分号（**;**）表示前三行没有映射信息，第四行的位置信息从**AAAO**
+开始且表示第一个位置信息，逗号（**,**）后的下一串字符**IAAM**表示第二个位置，直到下一个分号开始，表示第五行位置信息，依次类推。
 
 #### 什么是VLQ编码(Variable-length quantity)？
 
@@ -417,8 +413,7 @@ bits）: 数字在VLQ中以n个8位二进制位表示，最高位为标志位，
 </tr>
 </table>
 
-在完整的VLQ编码中，为了表示数字的正负，则将第一段（最低位）取 1（A0连续位）+ 6（data）+
-1（符号位，0正1负）：
+为了表示有符号整数的正负，则将第一段（最低位）取 1（A0连续位）+ 6（data）+ 1（符号位，0正1负）：
 
 <table>
 <tr>
@@ -438,18 +433,15 @@ bits）: 数字在VLQ中以n个8位二进制位表示，最高位为标志位，
 </tr>
 </table>
 
-因此，在对数据（二进制）进行编码时，会取7的倍数-1为一组进行编码，分别的正负位和连续位进行补位凑满8位。当然，VLQ只是一种编码概念，像其他引擎（比如Unreal将符号位设置在首段最前面）也可能将段倒置逆序等。
+因此，在对数据（二进制）进行编码时，会取长度为7n-1为一组进行编码，分别的正负位和连续位进行补位凑满8位。当然，VLQ只是一种编码概念，像其他引擎（比如Unreal将符号位设置在首段最前面）也可能将段倒置逆序等。
 
 #### Base64编码
 
-Base64是以64个**可打印字符串**来表示二进制数据的方法。 2^**6** = 64
-即采用6位二进制位为单元。映射表（常用标准）即按顺序的**A-Za-z/=**
-映射。（[源码在sdk/encoder/base64.ts](./sdk/encoder/base64.ts))
+Base64是以64个**可打印字符串**来表示二进制数据的方法。 2^**6** = 64 即采用6位二进制位为单元。映射表（常用标准）即按顺序的**A-Za-z/=**映射。（[源码在sdk/encoder/base64.ts](./sdk/encoder/base64.ts))
 
 #### Base64-VLQ
 
-由于Base64的单元限制，故Base64
-VLQ的单位也是6位，即最高位表示连续，低5位表示实际数据。（[源码在sdk/encoder/vlq.ts](./sdk/encoder/vlq.ts))
+由于Base64的单元限制，故Base64 VLQ的单位也是6位，即最高位表示连续，低5位表示实际数据。（[源码在sdk/encoder/vlq.ts](./sdk/encoder/vlq.ts))
 
 #### mappings如何表示代码位置
 
@@ -463,9 +455,7 @@ VLQ的单位也是6位，即最高位表示连续，低5位表示实际数据。
 | Line 1, Column 1 | Yoda_input.txt | Line 1, Column 6 | h         |
 | Line 1, Column 2 | Yoda_input.txt | Line 1, Column 7 | e         |
 
-mappings里记录的是符号的输入输出位置信息和字符信息，手动填入mappings以单词**
-the**
-为例（line|col|file|line|col)：
+mappings里记录的是符号的输入输出位置信息和字符信息，手动填入mappings以单词**the**为例（line|col|file|line|col)：
 
 `mappings=1|0|Yoda_input.txt|1|5,1|1|Yoda_input.txt|1|6,1|2|Yoda_input.txt|1|7`
 
@@ -495,9 +485,7 @@ other line 1;    ⇒ 转换 ⇒    the force feel;
 
 **3. 整合一下数据**
 
-当然我们不可能在mappings的段里都写上**Yoda_input.txt**文件名，那就用**
-sources**
-表示资源位置吧：
+当然我们不可能在mappings的段里都写上**Yoda_input.txt**文件名，那就用**sources**表示资源位置吧：
 
  ```json
  {
@@ -530,66 +518,65 @@ sourcemap将转换和修改的符号表保存在names字段里，最后一位新
 
 **5. 用Base64 VLQ优化信息存储**
 
-   该有的都有了，但我们还有两个最大的问题要处理：
+该有的都有了，但我们还有两个最大的问题要处理：
 
-    + 我们不能真用竖线来分割每个位置信息所代表的数字;
-    + 字符可能是10行40列sources第12个文件names第126个字符，没有竖线区分，对于长度不定的数字没办法有效区分；
++ 我们不能真用竖线来分割每个位置信息所代表的数字;
++ 字符可能是10行40列sources第12个文件names第126个字符，没有竖线区分，对于长度不定的数字没办法有效区分；
 
-   首先，不能用数组存储，json序列化很昂贵；其次，不能用竖线去分隔位置信息，这样会使得mappings的长度大幅增加，起不到精简高效的作用。所以需要一个能存储有序数字并且能表示分隔的编码方式，即VLQ。为了保证数据的可靠性，避免国际字符在平台间产生差异和问题，所以采用了最通用的base64编码进行交换和存储。
+首先，不能用数组存储，json序列化很昂贵；其次，不能用竖线去分隔位置信息，这样会使得mappings的长度大幅增加，起不到精简高效的作用。所以需要一个能存储有序数字并且能表示分隔的编码方式，即VLQ。为了保证数据的可靠性，避免国际字符在平台间产生差异和问题，所以采用了最通用的base64编码进行交换和存储。
 
-   代码实现：
+代码实现：
 
-    ```typescript
-    const base64 = [
-      'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-      'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-      '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/', '='
-    ]
-    const base64Table: Map<number, string> = base64.reduce((table, n, idx) => table.set(idx, n), new Map())
-    
-    const enum Vlq {
-      Length = 5,
-      Base = 1 << Vlq.Length, // 100000 32
-      BaseMask = Vlq.Base - 1, // 011111 31
-      Continuation = Vlq.Base
-    }
-    
-    const encoder = (num: number) => {
-      // 1. 负数末尾标志位设1
-      if (num < 0) num = (Math.abs(num) << 1) | 1
-      else {
-        num <<= 1
-      }
-    
-      let result = ""
-      while (true) {
-        const digit = num & Vlq.BaseMask
-        result += base64Table.get(num < Vlq.Continuation ? digit : digit | Vlq.Continuation)
-    
-        if ((num >>>= Vlq.Length) <= 0) break
-      }
-      return result
-    }
-    
-    const encode = (num: number | number[]) => {
-      if (typeof num === "number") return encoder(num)
-      else {
-        return num.reduce((pre, n) => pre += encoder(n), "")
-      }
-    }
-    
-    //在线检测 https://www.murzwin.com/base64vlq.html
-    console.log(encode(7)) // O
-    console.log(encode(16)) // gB
-    console.log(encode(1200)) // grC
-    console.log(encode(-17)) // jB
-    console.log(encode([710, 0, 0, 0])) // ssBAAA
-    ```
+```typescript
+const base64 = [
+  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/', '='
+]
+const base64Table: Map<number, string> = base64.reduce((table, n, idx) => table.set(idx, n), new Map())
+
+const enum Vlq {
+  Length = 5,
+  Base = 1 << Vlq.Length, // 100000 32
+  BaseMask = Vlq.Base - 1, // 011111 31
+  Continuation = Vlq.Base
+}
+
+const encoder = (num: number) => {
+  // 1. 负数末尾标志位设1
+  if (num < 0) num = (Math.abs(num) << 1) | 1
+  else {
+    num <<= 1
+  }
+
+  let result = ""
+  while (true) {
+    const digit = num & Vlq.BaseMask
+    result += base64Table.get(num < Vlq.Continuation ? digit : digit | Vlq.Continuation)
+
+    if ((num >>>= Vlq.Length) <= 0) break
+  }
+  return result
+}
+
+const encode = (num: number | number[]) => {
+  if (typeof num === "number") return encoder(num)
+  else {
+    return num.reduce((pre, n) => pre += encoder(n), "")
+  }
+}
+
+//在线检测 https://www.murzwin.com/base64vlq.html
+console.log(encode(7)) // O
+console.log(encode(16)) // gB
+console.log(encode(1200)) // grC
+console.log(encode(-17)) // jB
+console.log(encode([710, 0, 0, 0])) // ssBAAA
+```
 
 **6. 优化列信息**
 
-如果列信息始终使用绝对位置，则mappings每个字段都会存储过多较大的数字（如列112，列116，列120），如果出行第一个字段保持绝对位置记录行首空格信息为，其他列信息采用相对位置存储，则可以让数字小很多（如列4，列+6=10，列+12=22
-…… 依次计算）。
+如果列信息始终使用绝对位置，则mappings每个字段都会存储过多较大的数字（如列112，列116，列120），如果出行第一个字段保持绝对位置记录行首空格信息为，其他列信息采用相对位置存储，则可以让数字小很多（如列4，列+6=10，列+12=22 依次计算）。
 
 因为数据的可变长以及正负标记等因素，**此优化需要VLQ编码作为前提**。
 
@@ -610,9 +597,7 @@ read the line;               read t l
 | Line 1, Column 0 | Yoda_input.txt | Line 2, Column 6 | line => l => 1 |
 | Line 3, Column 7 | Yoda_input.txt | Line 1, Column 9 | line => l => 1 |
 
-以单词**the**，**line**
-为例，分别在转换前和转换后进行了位置改变和字符替换，最后一位新增一个符号映射位索引替换的字符。位置信息记录在上表，则在sourcemap里的结果如下(
-省略其它字符）：
+以单词**the**，**line** 为例，分别在转换前和转换后进行了位置改变和字符替换，最后一位新增一个符号映射位索引替换的字符。位置信息记录在上表，则在sourcemap里的结果如下(省略其它字符）：
 
 ```json
 {
@@ -702,7 +687,7 @@ export default class SourceMap {
 
 ### sourcemap准备
 
-首先，我们要在发布应用时产出sourcemap文件，并host到我们的收集服务器上（这里就是localhost:4004)。源代码使用的打包工具是vite，则需要开启生产环境打包sourcemap，`build.sourcemap = "hidden"`（值有三个，分别为true， false， “hidden”，区别是hidden也输出sourcemap文件，但是在js文件中并不会加上末尾的引用sourcemap注释。
+首先，我们要在发布应用时产出sourcemap文件，并host到我们的收集服务器上（这里就是localhost:4004)。源代码使用的打包工具是vite，所以只需要设置`build.sourcemap = "hidden"`（值有三个，分别为true， false， “hidden”，区别是hidden也输出sourcemap文件，但是在js文件中并不会加上末尾的引用sourcemap注释）。
 
 为了方便，我就将vite打包的sourcemap直接复制到服务端代码app.ts旁边：
 
