@@ -125,7 +125,7 @@ const notdefined,
 
 **3. window.addEventListener(“error”)** unable to capture **new Image** and **fetch** errors.
 
-When a resource (such as an image or script) fails to load, **the element that load the resource** will trigger an Event interface type error event, which **does not bubble ** to the window, **but can be captured**. And window.onerror cannot capture the event.
+When a resource (such as an image or script) fails to load, **the element that load the resource** will trigger an Event interface type error event, which **does not bubble** to the window, **but can be captured**. And window.onerror cannot capture the event.
 
 ```html
 <script>
