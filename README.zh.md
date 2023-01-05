@@ -148,7 +148,7 @@ fetch('api/v1/data')
 </script>
 ```
 
-**4. window.addEventListener("unhandledrejection")**可以捕获Promise错误
+**4. window.addEventListener("unhandledrejection")** 可以捕获Promise错误
 
 ```javascript
 // 全局统一处理Promise
